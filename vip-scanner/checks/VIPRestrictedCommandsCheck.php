@@ -1,11 +1,8 @@
 <?php
 
-class VIPRestrictedCommandsCheck extends BaseCheck
+class VIPRestrictedCommandsCheck extends CodeCheck
 {
-	function check( $files ) {
-		$result = true;
-
-		$checks = array(
+	protected static $functions = array(
 			// Restricted WP core functions
 			"update_post_caches" => array( "level" => "Note", "note" => "Post cache alteration" ),
 
@@ -86,13 +83,14 @@ class VIPRestrictedCommandsCheck extends BaseCheck
 			"date_default_timezone_set" => array( "level" => "Blocker", "note" => "Timezone manipulation" ),
 			"error_reporting" 			=> array( "level" => "Blocker", "note" => "Settings alteration" ),
 			"filter_input" 				=> array( "level" => "Warning", "note" => "Using filter_input(), use sanitize_* functions instead" ),
-			'eval' 						=> array( 'level' => 'Blocker', "note" => "Meta programming" ),
 			'create_function' 			=> array( 'level' => 'Blocker', "note" => "Using create_function, consider annonymous functions" ),
 			'extract' 					=> array( 'level' => 'Blocker', "note" => "Explicitly define variables rather than using extract()" ),
 			"ini_set" 					=> array( "level" => "Blocker", "note" => "Settings alteration" ),
 			"switch_theme" 				=> array( "level" => "Blocker", "note" => "Switching theme programmatically is not allowed. Please make the update by hand after a deploy of your code" ),
 			"wp_is_mobile" 				=> array( "level" => "Warning", "note" => "wp_is_mobile() is not batcache-friendly, please use <a href=\"http://vip.wordpress.com/documentation/mobile-theme/#targeting-mobile-visitors\">jetpack_is_mobile()</a>" ),
 			"show_admin_bar"            => array( "level" => "Blocker", "note" => "The WordPress.com admin bar cannot be removed as it’s integral to the user experience on WordPress.com" ),
+			"serialize"                 => array( "level" => "Blocker", "note" => "Serialized data has <a href='https://www.owasp.org/index.php/PHP_Object_Injection'>known vulnerability problems</a> with Object Injection. JSON is generally a better approach for serializing data." ),
+			"unserialize"               => array( "level" => "Blocker", "note" => "Serialized data has <a href='https://www.owasp.org/index.php/PHP_Object_Injection'>known vulnerability problems</a> with Object Injection. JSON is generally a better approach for serializing data." ),
 
 			// Restricted widgets
 			"WP_Widget_Tag_Cloud" => array( "level" => "Warning", "note" => "Using WP_Widget_Tag_Cloud, use WPCOM_Tag_Cloud_Widget instead" ),
@@ -398,34 +396,20 @@ class VIPRestrictedCommandsCheck extends BaseCheck
 
 			// XML Entity Loader mods
 			'libxml_set_external_entity_loader' => array( 'level' => 'Blocker', 'note' => 'Modifying the XML entity loader is disabled for security reasons.' ),
-		);
+	);
 
-		foreach ( $this->filter_files( $files, 'php' ) as $file_path => $file_content ) {
-			foreach ( $checks as $check => $check_info ) {
-				$this->increment_check_count();
-
-				if ( strpos( $file_content, $check ) !== false ) {
-					$pattern = "/\s+($check)+\s?\(+/msiU";
-					
-					if ( preg_match( $pattern, $file_content, $matches ) ) {
-						$filename = $this->get_filename( $file_path );
-
-						$lines = $this->grep_content( rtrim( $matches[0], '(' ), $file_content );
-
-						$this->add_error(
-							$check,
-							$check_info['note'],
-							$check_info['level'],
-							$filename,
-							$lines
-						);
-
-						$result = false;
-					}
+	function __construct() {
+		parent::__construct( array(
+			'PhpParser\Node\Expr\Eval_' => function( $node ) {
+				$this->add_error( 'eval', 'Meta programming', 'Blocker' );
+			},
+			'PhpParser\Node\Expr\FuncCall' => function( $node ) {
+				$name = $node->name->toString();
+				if ( in_array( $name, array_keys( self::$functions ) ) ) {
+					$error = self::$functions[ $name ];
+					$this->add_error( $name, $error['note'], $error['level'] );
 				}
-			}
-		}
-
-		return $result;
+			},
+		) );
 	}
 }

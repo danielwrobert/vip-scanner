@@ -92,9 +92,9 @@ class VIPScanner_Command extends WP_CLI_Command {
 	private static function scan_dir( &$scanner, $args ) {
 
 		if ( isset( $args['summary'] ) ) {
-			$this->display_summary( $scanner, $args['format'] );
+			self::display_summary( $scanner, $args['format'] );
 		} else {
-			$this->display_errors( $scanner, $args['format'] );
+			self::display_errors( $scanner, $args['format'] );
 		}
 	}
 
@@ -130,7 +130,7 @@ class VIPScanner_Command extends WP_CLI_Command {
 	
 		$errors = $scanner->get_errors();
 		if ( ! empty( $errors ) ) {
-			$this->display_errors( $scanner, 'table' );
+			self::display_errors( $scanner, 'table' );
 		}
 
 		$empty = array();
@@ -139,22 +139,24 @@ class VIPScanner_Command extends WP_CLI_Command {
 			'depth' => intval( $args['depth'] ),
 		);
 
-		foreach ( $scanner->renderers as $renderer ) {
-			// Display empty renderers after the others
-			if ( $renderer->is_empty() ) {
-				$empty[] = $renderer;
+		foreach ( $scanner->elements as $element ) {
+			// Display empty elements after the others
+			if ( $element->is_empty() ) {
+				$empty[] = $element;
 				continue;
 			}
 
-			if ( $renderer->name() !== 'Files' ) {
-				$renderer->analyze_prefixes();
+			if ( $element->name() !== 'Files' ) {
+				$element->analyze_prefixes();
 			}
 
-			WP_CLI::line( $renderer->display( false, $display_args ) );
+			$r = new ElementRenderer( $element );
+			WP_CLI::line( $r->display( false, $display_args ) );
 		}
 
-		foreach ( $empty as $renderer ) {
-			$renderer->display( true, $display_args );
+		foreach ( $empty as $element ) {
+			$r = new ElementRenderer( $element );
+			$r->display( true, $display_args );
 		}
 	}
 
@@ -163,7 +165,7 @@ class VIPScanner_Command extends WP_CLI_Command {
 	 * @param BaseScanner $scanner the scanner whose errors to display
 	 * @param string $format 'table', 'JSON', or 'CSV'
 	 */
-	protected function display_summary( $scanner, $format ) {
+	protected static function display_summary( $scanner, $format ) {
 		$results = $scanner->get_results();
 
 		$data = array();
@@ -212,7 +214,7 @@ class VIPScanner_Command extends WP_CLI_Command {
 	 * @param BaseScanner $scanner the scanner whose errors to display
 	 * @param string $format 'table', 'JSON', or 'CSV'
 	 */
-	protected function display_errors( $scanner, $format ) {
+	protected static function display_errors( $scanner, $format ) {
 		$data = array();
 
 		foreach ( $scanner->get_error_levels() as $level ) {
